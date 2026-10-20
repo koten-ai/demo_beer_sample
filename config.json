@@ -1,0 +1,36 @@
+{
+  "profile": "development",
+  "client_floor": "client-floor-6.1",
+  "chat_requests_dir": "data/chat_requests",
+  "zeus": {
+    "url": "http://localhost:8080",
+    "auth_mode": "basic",
+    "timeout_s": 30,
+    "username": "tester",
+    "password_env": "ZEUS_PASSWORD"
+  },
+  "target": {
+    "bucket": "beer-sample",
+    "scope": "_default",
+    "collection": "_default"
+  },
+  "llm": {
+    "provider": "xai",
+    "base_url": "LLM_BASE_URL",
+    "model": "LLM_MODEL",
+    "api_key_env": "LLM_API_KEY",
+    "timeout_s": 120
+  },
+  "settings": {
+    "mode": "analytics",
+    "durable_sessions": false,
+    "ai_process_result": false,
+    "max_rounds": 12,
+    "ignore_user_tool_path_hints": true
+  },
+  "session": {
+    "semantic_cache": {
+      "enabled": false
+    }
+  }
+}

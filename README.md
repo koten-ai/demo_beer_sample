@@ -1,35 +1,35 @@
 # The Sample Tap
 
-UI template for the beer-sample catalog. `static/index.html` is the page, the styles, and the script. `static/hero.jpg` is the hero photo.
+Beer-sample catalog app. `static/index.html` is the page, the styles, and the script. `static/hero.jpg` is the hero photo. `main.py` is the same-origin catalog API.
 
-The page calls a same-origin catalog API. That server is the beer catalog app in `../demo_beer_sample`. Zeus stays on its public API, port **8080**. The page listens on port **8090**.
+Zeus stays on its public API, port **8080**. The page listens on port **8090**.
 
-**`LLM_API_KEY` is required.** This sample works only after that variable is set in the catalog app `.env`. `config.json` `llm.api_key_env` stays the name `LLM_API_KEY`. The secret belongs in `.env`. Restart the app after you set it. Pour and search stay off until the process has the key.
+**`LLM_API_KEY` is required.** This sample works only after that variable is set in `.env`. `config.json` `llm.api_key_env` stays the name `LLM_API_KEY`. The secret belongs in `.env`. Restart the app after you set it. Pour and search stay off until the process has the key.
 
 ## Make the page work
 
 1. Zeus is up at `http://localhost:8080` with bucket `beer-sample`, scope `_default`, collection `_default`, and mode `analytics`.
 
-2. From the catalog app, install and configure:
+2. From this directory, install and configure:
 
 ```bash
-cd ../demo_beer_sample
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
 
+`requirements.txt` installs FastAPI, uvicorn, python-dotenv, and `kotenai-zeus-client` (the `zeus_client_python` package).
+
 3. Set `LLM_API_KEY` in `.env`. This step is required. Leave `config.json` `llm.api_key_env` as the name `LLM_API_KEY`.
 
-4. Copy this template over the app's static files, then start it:
+4. Start the app:
 
 ```bash
-cp ../beer-sample-temp/static/index.html ../beer-sample-temp/static/hero.jpg static/
 python main.py
 ```
 
-`python main.py` binds `127.0.0.1` and port `8090`. Set `PORT` to change the port and `HOST` to change the bind address. Restart the process after any `.env` change.
+`python main.py` binds `127.0.0.1` and port `8090`. Set `PORT` to change the port and `HOST` to change the bind address. Restart the process after any `.env` change. The page is already in `static/`.
 
 5. Open [http://127.0.0.1:8090/](http://127.0.0.1:8090/).
 
@@ -59,7 +59,7 @@ Style chips: All, IPA, Porter, Stout, Pale Ale, Lager, Pilsner, Wheat, Belgian, 
 
 Cards use `name`. Beer lines use `style` and `brewery`. Brewery lines use `city`, `state`, and `country`. `abv` draws the badge when it is a number other than zero.
 
-## Catalog app env
+## Env
 
 | Variable | Default | Notes |
 | --- | --- | --- |
