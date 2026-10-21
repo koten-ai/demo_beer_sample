@@ -21,7 +21,7 @@ cp .env.example .env
 
 `requirements.txt` installs FastAPI, uvicorn, python-dotenv, and `kotenai-zeus-client` (the `zeus_client_python` package).
 
-3. Set `LLM_API_KEY` in `.env`. This step is required. Leave `config.json` `llm.api_key_env` as the name `LLM_API_KEY`.
+3. Set `LLM_API_KEY` in `.env`. This step is required. Leave `config.json` `llm.api_key_env` as the name `LLM_API_KEY`. `LLM_BASE_URL` defaults to `https://api.x.ai/v1` and `LLM_MODEL` to `grok-4.5-latest`. Other provider base URLs are in the Env section. `ZEUS_AUTH_MODE` defaults to `basic`. Set `ZEUS_USERNAME` and `ZEUS_PASSWORD` for basic auth. For bearer auth, set `ZEUS_AUTH_MODE` to `bearer` and set `ZEUS_BEARER_TOKEN`.
 
 4. Start the app:
 
@@ -70,11 +70,26 @@ Cards use `name`. Beer lines use `style` and `brewery`. Brewery lines use `city`
 | `ZEUS_MODE` | `analytics` | |
 | `HOST` | `127.0.0.1` | Bind address for `python main.py` |
 | `PORT` | `8090` | Page port |
+| `ZEUS_AUTH_MODE` | `basic` | `basic` or `bearer`. `config.json` names this env var |
+| `ZEUS_USERNAME` | | Basic auth user. Empty uses `tester` |
+| `ZEUS_PASSWORD` | | Basic auth password. `config.json` `password_env` is `ZEUS_PASSWORD` |
+| `ZEUS_BEARER_TOKEN` | | Token used when `ZEUS_AUTH_MODE` is `bearer` |
+| `LLM_BASE_URL` | `https://api.x.ai/v1` | Provider base URL. Values are below |
 | `LLM_API_KEY` | | **Required.** The sample works only after this is set in `.env`. `llm.api_key_env` stays the name `LLM_API_KEY` |
-| `LLM_BASE_URL` | `https://api.x.ai/v1` | |
-| `LLM_MODEL` | `grok-4.5-latest` | Default Grok model |
-| `ZEUS_USERNAME` / `ZEUS_PASSWORD` | | Optional basic auth |
-| `ZEUS_BEARER_TOKEN` | | Optional bearer |
+| `LLM_MODEL` | `grok-4.5-latest` | Model for the provider in `LLM_BASE_URL` |
+
+`config.json` stores `ZEUS_AUTH_MODE`, `ZEUS_USERNAME`, and `ZEUS_MODE` for auth mode, user, and Zeus mode. Startup fills those from the environment before the client reads the file.
+
+`LLM_BASE_URL` values from `.env.example`:
+
+| Provider | Base URL |
+| --- | --- |
+| Grok | `https://api.x.ai/v1` |
+| OpenAI | `https://api.openai.com/v1` |
+| Anthropic | `https://api.anthropic.com/v1` |
+| Gemini (OpenAI-compatible) | `https://generativelanguage.googleapis.com/v1beta/openai/` |
+
+Search calls `{LLM_BASE_URL}/chat/completions`. Set `LLM_MODEL` to a model that base URL serves.
 
 ## Docs
 

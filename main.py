@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -74,10 +75,63 @@ def _overlay_client_env() -> None:
     os.environ["ZEUS_CLIENT_CHAT_REQUESTS_DIR"] = chat
 
 
+_AUTH_MODES = frozenset({"none", "basic", "bearer", "session", "certificate"})
+
+
+def _env_text(name: str) -> str:
+    return (os.environ.get(name) or "").strip()
+
+
+def _resolved_config_path() -> Path:
+    '''Write a temp config with real auth mode, user, and mode.
+
+    config.json stores ZEUS_AUTH_MODE, ZEUS_USERNAME, and ZEUS_MODE.
+    The client rejects an auth_mode that is not a real mode, and it keeps
+    the file's auth_mode when ZEUS_URL is set.
+    '''
+    data = json.loads((_ROOT / "config.json").read_text(encoding="utf-8"))
+    zeus = data.setdefault("zeus", {})
+    settings = data.setdefault("settings", {})
+
+    auth = str(zeus.get("auth_mode") or "")
+    if auth not in _AUTH_MODES:
+        auth = _env_text(auth) or _env_text("ZEUS_AUTH_MODE") or "basic"
+    env_auth = _env_text("ZEUS_AUTH_MODE")
+    if env_auth in _AUTH_MODES:
+        auth = env_auth
+    zeus["auth_mode"] = auth if auth in _AUTH_MODES else "basic"
+
+    if str(zeus.get("username") or "") == "ZEUS_USERNAME":
+        zeus["username"] = _env_text("ZEUS_USERNAME") or "tester"
+
+    if str(settings.get("mode") or "") == "ZEUS_MODE":
+        settings["mode"] = _env_text("ZEUS_MODE") or "analytics"
+
+    handle = tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        suffix=".json",
+        prefix="beer-config-",
+        delete=False,
+    )
+    try:
+        json.dump(data, handle)
+        handle.close()
+    except Exception:
+        handle.close()
+        Path(handle.name).unlink(missing_ok=True)
+        raise
+    return Path(handle.name)
+
+
 def _build_runtime() -> ZeusRuntime:
     '''Wire Zeus, LLM, catalog store, and catalog remote the way travel does.'''
     _overlay_client_env()
-    rt = ZeusRuntime.from_config(_ROOT / "config.json", profile="development")
+    config_path = _resolved_config_path()
+    try:
+        rt = ZeusRuntime.from_config(config_path, profile="development")
+    finally:
+        config_path.unlink(missing_ok=True)
     secrets = rt.services.secrets
     rt.services.zeus = HttpxZeusPort(
         endpoint=rt.config.zeus, secrets=secrets, journal=rt.journal
