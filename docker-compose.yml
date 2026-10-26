@@ -1,0 +1,22 @@
+services:
+  demo-beer-sample:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: demo-beer-sample
+    ports:
+      - "8090:8090"
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8090"
+      # Public API on the host. Hub :9091 is the wrong port.
+      # Replace this to point the container at another public :8080 URL.
+      ZEUS_URL: "http://host.docker.internal:8080"
+      ZEUS_CHAT_REQUESTS_DIR: "/app/data/chat_requests"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

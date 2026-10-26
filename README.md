@@ -19,7 +19,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-`requirements.txt` installs FastAPI, uvicorn, python-dotenv, and `kotenai-zeus-client` (the `zeus_client_python` package).
+`requirements.txt` installs FastAPI, uvicorn, python-dotenv, and `kotenai-zeus-client` (the `zeus_client_python` package) from PyPI at `kotenai-zeus-client>=2.5.3,<2.6`.
 
 3. Set `LLM_API_KEY` in `.env`. This step is required. Leave `config.json` `llm.api_key_env` as the name `LLM_API_KEY`.
 
@@ -31,7 +31,19 @@ python main.py
 
 `python main.py` binds `127.0.0.1` and port `8090`. Set `PORT` to change the port and `HOST` to change the bind address. Restart the process after any `.env` change. The page is already in `static/`.
 
+On startup the app calls `catalog.sync()` and writes `data/chat_requests/beer-sample__default/chat_request_analytics_v2.json` from the live Zeus pin (`chat_request_analytics_base-6.1.json` today). That directory is gitignored. It survives a process restart. A missing catalog makes Pour return HTTP 502. It does not answer with empty `req_ids`.
+
 5. Open [http://127.0.0.1:8090/](http://127.0.0.1:8090/).
+
+## Docker
+
+Copy `.env.example` to `.env` and set `LLM_API_KEY` and `ZEUS_PASSWORD` first. Compose publishes `8090`, sets `HOST=0.0.0.0`, and points `ZEUS_URL` at `http://host.docker.internal:8080` so the container reaches Zeus on the host. Hub `:9091` is the wrong port. `./data` is bind-mounted to `/app/data`, so the synced catalog survives a container restart. `.env` and `data/` are not copied into the image.
+
+```bash
+docker compose up --build
+```
+
+Open [http://127.0.0.1:8090/](http://127.0.0.1:8090/). To point the container at another public `:8080` URL, change the `ZEUS_URL` entry in `docker-compose.yml`.
 
 `GET /healthz` returns `{"status":"ok","sample":"beer"}` when the process is up.
 
@@ -68,12 +80,13 @@ Cards use `name`. Beer lines use `style` and `brewery`. Brewery lines use `city`
 | `ZEUS_SCOPE` | `_default` | |
 | `ZEUS_COLLECTION` | `_default` | |
 | `ZEUS_MODE` | `analytics` | |
-| `HOST` | `127.0.0.1` | Bind address for `python main.py` |
+| `HOST` | `127.0.0.1` | Bind address for `python main.py`. Compose sets `0.0.0.0` |
 | `PORT` | `8090` | Page port |
 | `LLM_API_KEY` | | **Required.** The sample works only after this is set in `.env`. `llm.api_key_env` stays the name `LLM_API_KEY` |
-| `LLM_BASE_URL` | `https://api.x.ai/v1` | |
+| `LLM_BASE_URL` | `https://api.x.ai/v1` | Set this with the key and the model |
 | `LLM_MODEL` | `grok-4.5-latest` | Default Grok model |
-| `ZEUS_USERNAME` / `ZEUS_PASSWORD` | | Optional basic auth |
+| `ZEUS_USERNAME` | `tester_beer` | Application user. An empty name falls back to `tester` |
+| `ZEUS_PASSWORD` | | Password. Only in the environment |
 | `ZEUS_BEARER_TOKEN` | | Optional bearer |
 
 ## Docs

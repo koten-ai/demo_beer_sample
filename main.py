@@ -11,6 +11,7 @@ Scaffolded by zeus_dev_helper_mcp use_sample(sample=beer).
 from __future__ import annotations
 
 import json
+import logging
 import os
 import time
 import uuid
@@ -27,7 +28,10 @@ from zeus_client.adapters.catalog_fs.store import FsCatalogStore
 from zeus_client.adapters.llm_openai_compatible import OpenAICompatibleLlmClient
 from zeus_client.adapters.zeus_http import HttpxZeusPort
 from zeus_client.adapters.zeus_http.catalog_remote import HttpxCatalogRemote
+from zeus_client.domain.catalog import chat_request_filename, scope_chat_requests_subdir
 from zeus_client.domain.errors import ZeusClientError
+
+logger = logging.getLogger("demo_beer_sample")
 
 _ROOT = Path(__file__).resolve().parent
 load_dotenv(_ROOT / ".env")
@@ -93,6 +97,61 @@ def _build_runtime() -> ZeusRuntime:
     return rt
 
 
+def _copy_live_pin(chat_dir: Path, bucket: str, scope: str, mode: str) -> Path | None:
+    '''Copy the synced scope file to the live pin filename.
+
+    The client loads ``<bucket>__<scope>/chat_request_<mode>_v2.json`` when
+    ``base_id`` is unset. The pin name (``chat_request_analytics_base-6.1.json``
+    today) is the same bytes, for the operator. The loader does not open that
+    name unless ``base_id`` is set.
+    '''
+    if not bucket or not scope or not mode:
+        return None
+    scope_file = (
+        chat_dir
+        / scope_chat_requests_subdir(bucket, scope)
+        / chat_request_filename(mode)
+    )
+    if not scope_file.is_file():
+        return None
+    try:
+        body = json.loads(scope_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    lineage = body.get("_lineage") if isinstance(body, dict) else None
+    base_id = ""
+    if isinstance(lineage, dict):
+        base_id = str(lineage.get("base_id") or "").strip()
+    if not base_id or "/" in base_id or "\\" in base_id or ".." in base_id:
+        return None
+    dest = chat_dir / chat_request_filename(mode, base_id)
+    data = scope_file.read_bytes()
+    if dest.is_file():
+        try:
+            if dest.read_bytes() == data:
+                return dest
+        except OSError:
+            return None
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
+    return dest
+
+
+async def _sync_catalog(rt: ZeusRuntime) -> None:
+    '''Fetch the live pin into the scope path. A failed sync stays a later 502.'''
+    try:
+        await rt.catalog.sync()
+    except Exception:
+        logger.warning("beer catalog sync failed", exc_info=True)
+    chat = Path(rt.config.chat_requests_dir or (_ROOT / "data" / "chat_requests"))
+    _copy_live_pin(
+        chat,
+        rt.config.target.bucket,
+        rt.config.target.scope,
+        rt.config.settings.mode or "analytics",
+    )
+
+
 def _runtime() -> ZeusRuntime:
     global _runtime_obj
     if _runtime_obj is None:
@@ -102,6 +161,8 @@ def _runtime() -> ZeusRuntime:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
+    rt = _runtime()
+    await _sync_catalog(rt)
     try:
         yield
     finally:
@@ -763,9 +824,12 @@ async def _run_search(query: str, *, limit: int) -> dict[str, Any]:
     rt = _runtime()
     cfg = rt.config
     chat_id = "beer_" + uuid.uuid4().hex[:12]
-    # Omit chat_request so 2.4 AgentAPI.run_turn calls catalog.load_for_turn
-    # (SCOPE BRIEF + MINI-SCHEMA merge). Do not pass a frozen body here.
+    # Omit chat_request so AgentAPI.run_turn calls catalog.load_for_turn
+    # (SCOPE BRIEF + MINI-SCHEMA merge). Do not pass a frozen body or base_id.
+    # Load first so a missing catalog is HTTP 502 on the current client, which
+    # otherwise swallows CATALOG_NOT_FOUND and answers with empty req_ids.
     try:
+        await rt.catalog.load_for_turn(cfg.settings.mode, target=cfg.target)
         result = await rt.agent.run_turn(
             message,
             target=cfg.target,
