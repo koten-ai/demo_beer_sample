@@ -49,7 +49,7 @@ def test_env_contract_names_the_beer_user_and_keeps_the_password_empty() -> None
     assert "ZEUS_URL=http://localhost:8080" in example
     assert "data/" in gitignore.splitlines()
     assert ".env" in gitignore.splitlines()
-    assert "username" not in config["zeus"]
+    assert config["zeus"]["username"] == "tester_beer"
     assert config["zeus"]["password_env"] == "ZEUS_PASSWORD"
     assert config["zeus"]["url"] == "http://localhost:8080"
     assert config["chat_requests_dir"] == "data/chat_requests"

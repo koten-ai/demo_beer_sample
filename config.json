@@ -6,6 +6,7 @@
     "url": "http://localhost:8080",
     "auth_mode": "basic",
     "timeout_s": 30,
+    "username": "tester_beer",
     "password_env": "ZEUS_PASSWORD"
   },
   "target": {
