@@ -4,7 +4,7 @@
   "chat_requests_dir": "data/chat_requests",
   "zeus": {
     "url": "http://localhost:8080",
-    "auth_mode": "basic",
+    "auth_mode": "ZEUS_AUTH_MODE",
     "timeout_s": 30,
     "username": "tester_beer",
     "password_env": "ZEUS_PASSWORD"
@@ -22,7 +22,7 @@
     "timeout_s": 120
   },
   "settings": {
-    "mode": "analytics",
+    "mode": "ZEUS_MODE",
     "durable_sessions": false,
     "ai_process_result": false,
     "max_rounds": 12,
