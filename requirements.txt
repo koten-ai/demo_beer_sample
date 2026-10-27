@@ -1,5 +1,5 @@
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
-# kotenai-zeus-client is the zeus_client_python package.
-kotenai-zeus-client>=2.5.0,<2.6
+# kotenai-zeus-client is the zeus_client_python package on PyPI (2.5.3).
+kotenai-zeus-client>=2.5.3,<2.6
 python-dotenv>=1.0.0
