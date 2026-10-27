@@ -37,7 +37,7 @@ On startup the app calls `catalog.sync()` and writes `data/chat_requests/beer-sa
 
 ## Docker
 
-Copy `.env.example` to `.env` and set `LLM_API_KEY` and `ZEUS_PASSWORD` first. Compose publishes `8090`, sets `HOST=0.0.0.0`, and points `ZEUS_URL` at `http://host.docker.internal:8080` so the container reaches Zeus on the host. Hub `:9091` is the wrong port. `./data` is bind-mounted to `/app/data`, so the synced catalog survives a container restart. `.env` and `data/` are not copied into the image.
+Copy `.env.example` to `.env` and set `LLM_API_KEY` and `ZEUS_PASSWORD` first. Compose publishes `8090`, sets `HOST=0.0.0.0`, and points `ZEUS_URL` at `http://host.docker.internal:8080` so the container reaches Zeus on the host. Hub `:9091` is the wrong port. `./.env` and `./data` are bind-mounted. The app reads `.env` with python-dotenv, so a `$` in a password is unchanged. The synced catalog survives a container restart. `.env` and `data/` are not copied into the image.
 
 ```bash
 docker compose up --build
