@@ -363,9 +363,16 @@
       return `<span class="abv">${n.toFixed(1)}% ABV</span>`;
     }
 
-    function subline(card) {
+    function subline(card, searching) {
+      const place = [card.city, card.state, card.country].filter(Boolean).join(", ");
+      if (searching) {
+        const bits = [];
+        if (card.style) bits.push(card.style);
+        if (card.brewery) bits.push(card.brewery);
+        if (place) bits.push(place);
+        return bits.join(" · ");
+      }
       if (mode === "breweries") {
-        const place = [card.city, card.state, card.country].filter(Boolean).join(", ");
         return place || card.category || card.style || "";
       }
       return [card.style, card.brewery].filter(Boolean).join(" · ");
@@ -461,6 +468,7 @@
         loadList(true);
         return;
       }
+      const searching = !(data && data.paged);
       const cards = data.items || data.cards || [];
       const named = cards.filter((c) => c && String(c.name || "").trim());
       const rawPath = data.path || [];
@@ -480,7 +488,7 @@
         return;
       }
       cardsEl.innerHTML = named.map((c) => {
-        const line = subline(c);
+        const line = subline(c, searching);
         const badge = abvBadge(c.abv);
         return `<article class="card"><div class="card-top"><div class="mark">${markSvg(c)}</div><div class="card-copy"><h3>${escapeHtml(String(c.name))}</h3>${line ? `<p class="subline">${escapeHtml(String(line))}</p>` : ""}${badge}</div></div></article>`;
       }).join("");
@@ -545,8 +553,6 @@
       const params = new URLSearchParams();
       params.set("q", query);
       params.set("limit", pageParams.get("limit") || "24");
-      if (mode === "breweries") params.set("entity", "Brewery");
-      else if (pageParams.get("entity")) params.set("entity", pageParams.get("entity"));
       const match = CHIPS.find((label) => label.toLowerCase() === query.toLowerCase());
       setChip(match || "");
       return run("/api/search?" + params.toString());

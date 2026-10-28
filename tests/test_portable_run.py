@@ -12,6 +12,17 @@ def _text(name: str) -> str:
     return (ROOT / name).read_text(encoding="utf-8")
 
 
+def test_pour_keeps_joined_place_and_sends_the_question() -> None:
+    html = _text("static/index.html")
+    main = _text("main.py")
+    readme = _text("README.md")
+    assert "function subline(card, searching)" in html
+    assert 'params.set("entity"' not in html
+    assert "Entity type:" not in main
+    assert "joined entity" in readme
+    assert "def _joined_brewery" in main
+
+
 def test_run_layout_keeps_secrets_and_the_catalog_out_of_the_image() -> None:
     dockerfile = _text("Dockerfile")
     compose = _text("docker-compose.yml")
