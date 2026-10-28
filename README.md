@@ -67,9 +67,9 @@ Style chips: All, IPA, Porter, Stout, Pale Ale, Lager, Pilsner, Wheat, Belgian, 
 | `GET /api/config` | Page load. Fills the host, scope, and kicker. `pour_enabled` turns Pour on. |
 | `GET /api/beers?limit=24` | Beer list. `offset` is sent from page 2 onward, after paging is on. |
 | `GET /api/breweries?limit=24` | Brewery list. Same paging. |
-| `GET /api/search?q=…&limit=24` | Pour. Brewery mode adds `entity=Brewery`. An empty box reloads the list. |
+| `GET /api/search?q=…&limit=24` | Pour. The question text is the search. The tab does not add an entity. An empty box reloads the list. |
 
-Cards use `name`. Beer lines use `style` and `brewery`. Brewery lines use `city`, `state`, and `country`. `abv` draws the badge when it is a number other than zero.
+Cards use `name`. A Pour result shows the fields the question asked for, including fields from a joined entity, while the current tab stays selected. That line includes `style`, `brewery`, and `city` / `state` / `country` when the result already has them. The Beers and Breweries controls stay the Direct lists. A brewery list line uses `city`, `state`, and `country`. `abv` draws the badge when it is a number other than zero.
 
 ## Env
 
