@@ -23,6 +23,8 @@ def test_run_layout_keeps_secrets_and_the_catalog_out_of_the_image() -> None:
     assert 'HOST: "0.0.0.0"' in compose
     assert "http://host.docker.internal:8080" in compose
     assert "host.docker.internal:host-gateway" in compose
+    assert "./.env:/app/.env:ro" in compose
+    assert "env_file:" not in compose
     assert "./data:/app/data" in compose
     assert "container_name: demo-beer-sample" in compose
     url_lines = [

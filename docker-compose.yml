@@ -13,9 +13,10 @@ services:
       # Replace this to point the container at another public :8080 URL.
       ZEUS_URL: "http://host.docker.internal:8080"
       ZEUS_CHAT_REQUESTS_DIR: "/app/data/chat_requests"
-    env_file:
-      - .env
+    # Mount .env. env_file interpolates dollar signs and shortens a password.
+    # python-dotenv reads this file, as it does for python main.py.
     volumes:
+      - ./.env:/app/.env:ro
       - ./data:/app/data
     extra_hosts:
       - "host.docker.internal:host-gateway"
