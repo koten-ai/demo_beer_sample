@@ -53,7 +53,8 @@ Open [http://127.0.0.1:8090/](http://127.0.0.1:8090/). To point the container at
 - **Breweries** loads the brewery list and hides the style chips.
 - **All** clears the box and reloads the beer list.
 - A style chip, or **Pour**, sends the box text to search. Both need `LLM_API_KEY` in the running process. The line under the box gives the reason when the key is missing.
-- The box keeps the question. [http://127.0.0.1:8090/search?q=Duvel](http://127.0.0.1:8090/search?q=Duvel) opens that search. `?entity=brewery` opens on Breweries. `?page=2` asks for the next list page. Next stays hidden when the catalog repeats page 1.
+- [http://127.0.0.1:8090/?debug=true](http://127.0.0.1:8090/?debug=true) opts the Pour into Zeus rewind. The lightning toggle is bottom-left. The page loads `zeus_client_chat_trace/latest` from the CDN. Beer and brewery lists do not mount a trace card. Hub for that panel is `http://zeus-dev.local:9091`, not public Zeus `:8080`.
+- The box keeps the question. [http://127.0.0.1:8090/search?q=Duvel](http://127.0.0.1:8090/search?q=Duvel) opens that search. `?entity=brewery` opens on Breweries. `?page=2` asks for the next list page. Next stays hidden when the catalog repeats page 1. The page keeps `debug` on the URL.
 - A result with no beer or brewery name shows the empty state.
 
 Queries that match this catalog: `IPA`, `Porter`, `Duvel`, and `What beers are made from fruits?`.
@@ -67,7 +68,7 @@ Style chips: All, IPA, Porter, Stout, Pale Ale, Lager, Pilsner, Wheat, Belgian, 
 | `GET /api/config` | Page load. Fills the host, scope, and kicker. `pour_enabled` turns Pour on. |
 | `GET /api/beers?limit=24` | Beer list. `offset` is sent from page 2 onward, after paging is on. |
 | `GET /api/breweries?limit=24` | Brewery list. Same paging. |
-| `GET /api/search?q=…&limit=24` | Pour. The question text is the search. The tab does not add an entity. An empty box reloads the list. |
+| `GET /api/search?q=…&limit=24` | Pour. The question text is the search. The tab does not add an entity. An empty box reloads the list. `?debug=true` (also `1`, `yes`, or `on`) sets rewind on that Pour and returns `trace`. Beer and brewery lists do not. |
 
 Cards use `name`. A Pour result shows the fields the question asked for, including fields from a joined entity, while the current tab stays selected. That line includes `style`, `brewery`, and `city` / `state` / `country` when the result already has them. The Beers and Breweries controls stay the Direct lists. A brewery list line uses `city`, `state`, and `country`. `abv` draws the badge when it is a number other than zero.
 

@@ -930,6 +930,64 @@ async def _run_list(entity: str, *, limit: int, offset: int) -> dict[str, Any]:
     return payload
 
 
+_TRUTHY_QUERY = frozenset({"1", "true", "yes", "on"})
+
+_TOOL_ORDER = {
+    "v1": ["text_search", "get_by_keys", "find_nodes", "return_result"],
+    "v2": [
+        "describe",
+        "explain",
+        "get",
+        "find",
+        "set",
+        "order",
+        "enrich",
+        "project",
+        "traverse",
+        "search",
+        "analyze",
+        "return",
+    ],
+}
+
+
+def debug_query_enabled(value: object | None) -> bool:
+    '''True when query debug is 1, true, yes, or on.'''
+    if value is True:
+        return True
+    if value is False or value is None:
+        return False
+    return str(value).strip().lower() in _TRUTHY_QUERY
+
+
+def _tool_order() -> dict[str, list[str]]:
+    '''Trace-panel axes. Pipeline stays off the v2 list.'''
+    return {"v1": list(_TOOL_ORDER["v1"]), "v2": list(_TOOL_ORDER["v2"])}
+
+
+def trace_payload(result: Any) -> dict[str, Any]:
+    '''Widget trace from public_trace. Hops copy only when that trace has none.'''
+    debug = result.debug
+    trace: dict[str, Any] = dict(debug.public_trace or {})
+    if debug.notes:
+        existing = list(trace.get("notes") or [])
+        for note in debug.notes:
+            if note not in existing:
+                existing.append(note)
+        trace["notes"] = existing
+    if debug.detective is not None:
+        trace["detective"] = dict(debug.detective)
+    if debug.preferred_req_id:
+        sess = dict(trace.get("session") or {})
+        if not isinstance(sess, dict):
+            sess = {}
+        sess["preferred_req_id"] = debug.preferred_req_id
+        trace["session"] = sess
+    if debug.hops and not trace.get("hops"):
+        trace["hops"] = [dict(hop) for hop in debug.hops]
+    return trace
+
+
 def _hops_force_closed(result: Any) -> bool:
     '''True when a hop was refused for the shared session round cap.'''
     debug = getattr(result, "debug", None)
@@ -957,7 +1015,7 @@ def _pour_reason() -> str:
     return "Pour is off until LLM_API_KEY, XAI_API_KEY, or OPENAI_API_KEY is set in .env."
 
 
-async def _run_search(query: str, *, limit: int) -> dict[str, Any]:
+async def _run_search(query: str, *, limit: int, rewind: bool = False) -> dict[str, Any]:
     '''One catalog search via rt.agent.run_turn.
 
     chat_request is omitted on purpose. AgentAPI.run_turn then calls
@@ -991,7 +1049,8 @@ async def _run_search(query: str, *, limit: int) -> dict[str, Any]:
     ttl = _cache_ttl()
     key = json.dumps({"q": message, "limit": cap}, sort_keys=True)
     now = time.time()
-    if ttl > 0:
+    # Rewind turns stay out of the q+limit cache, both read and write.
+    if not rewind and ttl > 0:
         hit = _cache.get(key)
         if hit is not None and now - hit[0] <= ttl:
             return hit[1]
@@ -1014,6 +1073,7 @@ async def _run_search(query: str, *, limit: int) -> dict[str, Any]:
             chat_id=chat_id,
             model=cfg.llm.model,
             enable_sessions=bool(cfg.settings.durable_sessions),
+            rewind=bool(rewind),
         )
     except ZeusClientError as exc:
         raise HTTPException(
@@ -1057,6 +1117,7 @@ async def _run_search(query: str, *, limit: int) -> dict[str, Any]:
             status_code=503,
             detail={"error": "session_force_closed", "req_ids": req_ids},
         )
+    target = cfg.target
     payload = {
         "ok": True,
         "items": items,
@@ -1068,8 +1129,16 @@ async def _run_search(query: str, *, limit: int) -> dict[str, Any]:
         "empty_state": empty_state,
         "empty_message": empty_message,
         "status": result.status.value if hasattr(result.status, "value") else str(result.status),
+        "rewind": bool(rewind),
+        "chat_id": chat_id,
+        "target": f"{target.bucket}/{target.scope}/{target.collection}",
+        "mode": cfg.settings.mode,
+        "model": cfg.llm.model,
+        "provider": cfg.llm.provider,
+        "tool_order": _tool_order(),
+        "trace": trace_payload(result),
     }
-    if ttl > 0:
+    if not rewind and ttl > 0:
         _cache[key] = (now, payload)
     return payload
 
@@ -1126,9 +1195,14 @@ async def api_config() -> dict[str, Any]:
 async def api_search(
     q: str = Query("", max_length=500),
     limit: int = Query(PAGE_CAP, ge=1, le=PAGE_CAP),
+    debug: str | None = Query(None),
 ) -> dict[str, Any]:
-    '''Catalog search. The question text goes to run_turn. The tab does not add an entity.'''
-    return await _run_search((q or "").strip(), limit=limit)
+    '''Catalog search. debug=1|true|yes|on turns rewind on for this Pour only.'''
+    return await _run_search(
+        (q or "").strip(),
+        limit=limit,
+        rewind=debug_query_enabled(debug),
+    )
 
 
 @app.get("/api/beers")

@@ -503,14 +503,16 @@
       try {
         const res = await fetch(url);
         const data = await res.json();
-        if (token !== requestToken) return;
+        if (token !== requestToken) return null;
         if (!res.ok) throw new Error((data && data.detail && JSON.stringify(data.detail)) || res.statusText);
         paint(data);
         if (scroll) document.getElementById("section-title").scrollIntoView({ block: "start" });
+        return data;
       } catch (err) {
-        if (token !== requestToken) return;
+        if (token !== requestToken) return null;
         metaEl.textContent = "Error: " + (err && err.message ? err.message : err);
         renderPager(null);
+        return null;
       } finally {
         if (token === requestToken) goEl.disabled = !pourEnabled;
       }
@@ -540,7 +542,17 @@
       return loadList(true);
     }
 
-    function search(q) {
+    function pageDebugEnabled() {
+      try {
+        const raw = new URLSearchParams(location.search).get("debug");
+        if (raw == null || raw === "") return false;
+        return ["1", "true", "yes", "on"].includes(String(raw).trim().toLowerCase());
+      } catch (_) {
+        return false;
+      }
+    }
+
+    async function search(q) {
       if (!pourEnabled) {
         metaEl.textContent = pourReason || "Pour is off until an LLM key is in .env.";
         return;
@@ -553,9 +565,15 @@
       const params = new URLSearchParams();
       params.set("q", query);
       params.set("limit", pageParams.get("limit") || "24");
+      if (pageDebugEnabled()) params.set("debug", "true");
       const match = CHIPS.find((label) => label.toLowerCase() === query.toLowerCase());
       setChip(match || "");
-      return run("/api/search?" + params.toString());
+      const data = await run("/api/search?" + params.toString());
+      if (data && typeof window.appendTraceCard === "function") {
+        window.appendTraceCard(query, data);
+        window.openDebugPanel?.();
+      }
+      return data;
     }
 
     function escapeHtml(s) {
@@ -623,5 +641,15 @@
     }
     start();
   </script>
+  <script>
+    window.ZeusTraceConfig = {
+      toolOrder: {
+        "v1": ["text_search", "get_by_keys", "find_nodes", "return_result"],
+        "v2": ["describe", "explain", "get", "find", "set", "order", "enrich", "project", "traverse", "search", "analyze", "return"]
+      },
+      hubBaseUrl: "http://zeus-dev.local:9091"
+    };
+  </script>
+  <script src="https://koten-static-cdn.nyc3.cdn.digitaloceanspaces.com/zeus_client_chat_trace/latest/zeus_client_chat_trace.js" async></script>
 </body>
 </html>
