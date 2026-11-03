@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: demo-beer-sample
     ports:
-      - "8090:8090"
+      - "0.0.0.0:8090:8090"
     environment:
       HOST: "0.0.0.0"
       PORT: "8090"
