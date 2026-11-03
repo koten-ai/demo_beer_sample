@@ -634,6 +634,10 @@
   </script>
   <script>
     window.ZeusTraceConfig = {
+      toolOrder: {
+        "v1": ["text_search", "get_by_keys", "find_nodes", "return_result"],
+        "v2": ["describe", "explain", "get", "find", "set", "order", "enrich", "project", "traverse", "search", "analyze", "return"]
+      },
       hubBaseUrl: "http://zeus-dev.local:9091"
     };
   </script>

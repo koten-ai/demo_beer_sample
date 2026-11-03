@@ -140,8 +140,9 @@ def test_page_loads_the_cdn_trace_and_wires_it_on_pour() -> None:
     assert 'params.set("debug", debug)' in html
     config = html.split("window.ZeusTraceConfig", 1)[1].split("</script>", 1)[0]
     assert "http://zeus-dev.local:9091" in config
-    assert "toolOrder" not in config
-    assert "text_search" not in config
+    assert "toolOrder" in config
+    for name in ("text_search", "get_by_keys", "find_nodes", "return_result", *_V2_TOOLS):
+        assert f'"{name}"' in config
     assert "enabled" not in config
     assert "pipeline" not in config
     search = html.split("function search(", 1)[1].split("function escapeHtml", 1)[0]
