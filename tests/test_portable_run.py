@@ -75,7 +75,7 @@ def test_env_contract_names_the_beer_user_and_keeps_the_password_empty() -> None
 
 def test_pour_reports_a_missing_catalog_and_syncs_the_scope_file() -> None:
     main = _text("main.py")
-    search = main.split("async def _run_search", 1)[1].split("async def healthz", 1)[0]
+    search = main.split("async def _search_turn", 1)[1].split("async def _run_search", 1)[0]
     assert "await rt.catalog.sync()" in main
     assert "await rt.catalog.load_for_turn(cfg.settings.mode, target=cfg.target)" in search
     call = search.split("await rt.catalog.load_for_turn", 1)[1]
@@ -136,13 +136,14 @@ def test_page_loads_the_cdn_trace_and_wires_it_on_pour() -> None:
     html = _text("static/index.html")
     assert _CDN_TRACE in html
     assert "/static/zeus_client_chat_trace.js" not in html
-    assert "function pageDebugEnabled()" in html
-    assert 'params.set("debug", "true")' in html
+    assert "pageDebugEnabled" not in html
+    assert 'params.set("debug", debug)' in html
     config = html.split("window.ZeusTraceConfig", 1)[1].split("</script>", 1)[0]
     assert "http://zeus-dev.local:9091" in config
+    assert "toolOrder" not in config
+    assert "text_search" not in config
     assert "enabled" not in config
     assert "pipeline" not in config
-    assert "text_search" in config
     search = html.split("function search(", 1)[1].split("function escapeHtml", 1)[0]
     assert "appendTraceCard" in search
     assert "openDebugPanel" in search
@@ -163,7 +164,7 @@ def test_readme_documents_the_debug_pour_trace() -> None:
 
 
 def test_debug_query_enabled_uses_the_truthy_set() -> None:
-    from main import debug_query_enabled
+    from pour_trace import debug_query_enabled
 
     assert debug_query_enabled("true") is True
     assert debug_query_enabled("TRUE") is True
@@ -253,7 +254,7 @@ def _install_pour(monkeypatch, turn):
 def test_trace_payload_merges_notes_and_skips_hops_already_present() -> None:
     from zeus_client import DebugBundle, TurnResult, TurnStatus
 
-    from main import trace_payload
+    from pour_trace import trace_payload
 
     rich = TurnResult(
         answer="x",
@@ -400,8 +401,18 @@ def test_detail_routes_stay_rewind_off(monkeypatch) -> None:
     assert calls[0]["kwargs"]["rewind"] is False
     assert calls[1]["kwargs"]["rewind"] is False
     assert "Get the beer with id duvel" == calls[0]["message"]
-    assert beer.json()["rewind"] is False
-    assert brewery.json()["rewind"] is False
-    assert "trace" not in _text("main.py").split("async def api_beers", 1)[1].split(
-        "async def api_beer", 1
-    )[0]
+    for body in (beer.json(), brewery.json()):
+        assert "rewind" not in body
+        assert "trace" not in body
+        assert "tool_order" not in body
+        assert "chat_id" not in body
+    pour = client.get(
+        "/api/search",
+        params={"q": "Get the beer with id duvel", "limit": 1},
+    )
+    assert pour.status_code == 200
+    assert "trace" in pour.json()
+    assert len(calls) == 3
+    again = client.get("/api/beer/duvel")
+    assert "trace" not in again.json()
+    assert len(calls) == 3

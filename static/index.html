@@ -542,16 +542,6 @@
       return loadList(true);
     }
 
-    function pageDebugEnabled() {
-      try {
-        const raw = new URLSearchParams(location.search).get("debug");
-        if (raw == null || raw === "") return false;
-        return ["1", "true", "yes", "on"].includes(String(raw).trim().toLowerCase());
-      } catch (_) {
-        return false;
-      }
-    }
-
     async function search(q) {
       if (!pourEnabled) {
         metaEl.textContent = pourReason || "Pour is off until an LLM key is in .env.";
@@ -565,7 +555,8 @@
       const params = new URLSearchParams();
       params.set("q", query);
       params.set("limit", pageParams.get("limit") || "24");
-      if (pageDebugEnabled()) params.set("debug", "true");
+      const debug = new URLSearchParams(location.search).get("debug");
+      if (debug) params.set("debug", debug);
       const match = CHIPS.find((label) => label.toLowerCase() === query.toLowerCase());
       setChip(match || "");
       const data = await run("/api/search?" + params.toString());
@@ -643,10 +634,6 @@
   </script>
   <script>
     window.ZeusTraceConfig = {
-      toolOrder: {
-        "v1": ["text_search", "get_by_keys", "find_nodes", "return_result"],
-        "v2": ["describe", "explain", "get", "find", "set", "order", "enrich", "project", "traverse", "search", "analyze", "return"]
-      },
       hubBaseUrl: "http://zeus-dev.local:9091"
     };
   </script>
