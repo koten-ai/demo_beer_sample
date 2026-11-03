@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Secrets and the synced catalog stay on the host. Do not copy .env or data/.
 COPY requirements.txt ./
-COPY main.py config.json ./
+COPY main.py pour_trace.py config.json ./
 COPY static ./static
 
 RUN pip install --no-cache-dir -r requirements.txt

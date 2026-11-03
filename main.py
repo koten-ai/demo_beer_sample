@@ -32,6 +32,8 @@ from zeus_client.adapters.zeus_http.catalog_remote import HttpxCatalogRemote
 from zeus_client.domain.catalog import chat_request_filename, scope_chat_requests_subdir
 from zeus_client.domain.errors import ZeusClientError
 
+from pour_trace import debug_query_enabled, inspector_envelope
+
 logger = logging.getLogger("demo_beer_sample")
 
 _ROOT = Path(__file__).resolve().parent
@@ -957,54 +959,92 @@ def _pour_reason() -> str:
     return "Pour is off until LLM_API_KEY, XAI_API_KEY, or OPENAI_API_KEY is set in .env."
 
 
-async def _run_search(query: str, *, limit: int) -> dict[str, Any]:
-    '''One catalog search via rt.agent.run_turn.
+def _search_slot(message: str, limit: int, *, pour: bool) -> tuple[str, int, float, float]:
+    '''Cache slot for one question. Pour entries include the inspector body, so they
+    do not share a key with detail-route cards.'''
+    cap = max(1, min(int(limit or PAGE_CAP), PAGE_CAP))
+    ttl = _cache_ttl()
+    slot: dict[str, Any] = {"q": message, "limit": cap}
+    if pour:
+        slot["pour"] = True
+    return json.dumps(slot, sort_keys=True), cap, ttl, time.time()
 
-    chat_request is omitted on purpose. AgentAPI.run_turn then calls
-    catalog.load_for_turn, which loads the analytics catalog and merges the
-    live SCOPE BRIEF + MINI-SCHEMA into the system message sent to the model.
+
+def _take_cached(key: str, now: float, ttl: float) -> dict[str, Any] | None:
+    if ttl <= 0:
+        return None
+    hit = _cache.get(key)
+    if hit is None:
+        return None
+    if now - hit[0] <= ttl:
+        return hit[1]
+    _cache.pop(key, None)
+    return None
+
+
+def _store_cached(key: str, now: float, ttl: float, payload: dict[str, Any]) -> None:
+    if ttl > 0:
+        _cache[key] = (now, payload)
+
+
+def _reusable_hit(
+    message: str, limit: int, *, rewind: bool, pour: bool
+) -> tuple[dict[str, Any] | None, str, int, float, float]:
+    '''Cached body for a non-rewind question, plus the slot a miss should fill.'''
+    key, cap, ttl, now = _search_slot(message, limit, pour=pour)
+    if message and _pour_enabled() and not rewind:
+        return _take_cached(key, now, ttl), key, cap, ttl, now
+    return None, key, cap, ttl, now
+
+
+async def _search_turn(
+    message: str, *, cap: int, rewind: bool
+) -> tuple[dict[str, Any], Any | None, str, Any]:
+    '''One catalog turn. Returns the card payload, the turn, the chat id, and config.
+
+    The turn is None when Pour is off or the question is empty. Those payloads
+    are not cached. chat_request is omitted on purpose so AgentAPI.run_turn
+    calls catalog.load_for_turn (SCOPE BRIEF + MINI-SCHEMA merge).
     '''
     if not _pour_enabled():
         reason = _pour_reason()
-        return {
-            "ok": False,
-            "items": [],
-            "cards": [],
-            "pour_enabled": False,
-            "lede": reason,
-            "answer": reason,
-            "path": [],
-            "req_ids": [],
-        }
-    message = (query or "").strip()
+        return (
+            {
+                "ok": False,
+                "items": [],
+                "cards": [],
+                "pour_enabled": False,
+                "lede": reason,
+                "answer": reason,
+                "path": [],
+                "req_ids": [],
+            },
+            None,
+            "",
+            None,
+        )
     if not message:
-        return {
-            "ok": True,
-            "items": [],
-            "cards": [],
-            "lede": "",
-            "answer": "",
-            "path": [],
-            "req_ids": [],
-        }
-    cap = max(1, min(int(limit or PAGE_CAP), PAGE_CAP))
-    ttl = _cache_ttl()
-    key = json.dumps({"q": message, "limit": cap}, sort_keys=True)
-    now = time.time()
-    if ttl > 0:
-        hit = _cache.get(key)
-        if hit is not None and now - hit[0] <= ttl:
-            return hit[1]
-        if hit is not None:
-            _cache.pop(key, None)
+        return (
+            {
+                "ok": True,
+                "items": [],
+                "cards": [],
+                "lede": "",
+                "answer": "",
+                "path": [],
+                "req_ids": [],
+            },
+            None,
+            "",
+            None,
+        )
 
     rt = _runtime()
     cfg = rt.config
     chat_id = "beer_" + uuid.uuid4().hex[:12]
-    # Omit chat_request so AgentAPI.run_turn calls catalog.load_for_turn
-    # (SCOPE BRIEF + MINI-SCHEMA merge). Do not pass a frozen body or base_id.
     # Load first so a missing catalog is HTTP 502 on the current client, which
     # otherwise swallows CATALOG_NOT_FOUND and answers with empty req_ids.
+    # Do not pass a frozen body or base_id.
     try:
         await rt.catalog.load_for_turn(cfg.settings.mode, target=cfg.target)
         result = await rt.agent.run_turn(
@@ -1014,6 +1054,7 @@ async def _run_search(query: str, *, limit: int) -> dict[str, Any]:
             chat_id=chat_id,
             model=cfg.llm.model,
             enable_sessions=bool(cfg.settings.durable_sessions),
+            rewind=bool(rewind),
         )
     except ZeusClientError as exc:
         raise HTTPException(
@@ -1069,8 +1110,18 @@ async def _run_search(query: str, *, limit: int) -> dict[str, Any]:
         "empty_message": empty_message,
         "status": result.status.value if hasattr(result.status, "value") else str(result.status),
     }
-    if ttl > 0:
-        _cache[key] = (now, payload)
+    return payload, result, chat_id, cfg
+
+
+async def _run_search(query: str, *, limit: int, rewind: bool = False) -> dict[str, Any]:
+    '''Catalog cards for detail routes. The payload has no inspector fields.'''
+    message = (query or "").strip()
+    hit, key, cap, ttl, now = _reusable_hit(message, limit, rewind=rewind, pour=False)
+    if hit is not None:
+        return hit
+    payload, result, _chat_id, _cfg = await _search_turn(message, cap=cap, rewind=rewind)
+    if result is not None and not rewind:
+        _store_cached(key, now, ttl, payload)
     return payload
 
 
@@ -1126,9 +1177,30 @@ async def api_config() -> dict[str, Any]:
 async def api_search(
     q: str = Query("", max_length=500),
     limit: int = Query(PAGE_CAP, ge=1, le=PAGE_CAP),
+    debug: str | None = Query(None),
 ) -> dict[str, Any]:
-    '''Catalog search. The question text goes to run_turn. The tab does not add an entity.'''
-    return await _run_search((q or "").strip(), limit=limit)
+    '''Pour. debug=1|true|yes|on turns rewind on for this request only.'''
+    rewind = debug_query_enabled(debug)
+    message = (q or "").strip()
+    hit, key, cap, ttl, now = _reusable_hit(message, limit, rewind=rewind, pour=True)
+    if hit is not None:
+        return hit
+    payload, result, chat_id, cfg = await _search_turn(message, cap=cap, rewind=rewind)
+    if result is not None:
+        payload.update(
+            inspector_envelope(
+                result,
+                rewind=rewind,
+                chat_id=chat_id,
+                target=cfg.target,
+                mode=cfg.settings.mode,
+                model=cfg.llm.model,
+                provider=cfg.llm.provider,
+            )
+        )
+        if not rewind:
+            _store_cached(key, now, ttl, payload)
+    return payload
 
 
 @app.get("/api/beers")
